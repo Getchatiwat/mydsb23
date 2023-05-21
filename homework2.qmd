@@ -48,7 +48,7 @@ glimpse(mass_shootings)
 ```
 
 | column(variable)     | description                                                                 |
-|------------------|------------------------------------------------------|
+|----------------------|-----------------------------------------------------------------------------|
 | case                 | short name of incident                                                      |
 | year, month, day     | year, month, day in which the shooting occurred                             |
 | location             | city and state where the shooting occcurred                                 |
@@ -78,12 +78,15 @@ mass_shootings %>%
 
 ```{r}
 mass_shootings %>% 
+  filter(!is.na(race)) %>% 
   group_by(race) %>% 
-  summarise(count=n())%>%
-  arrange(desc(count)) %>% 
-  mutate(race = fct_reorder(race,count)) %>% 
-  ggplot(aes(y=race))+
-  geom_bar()
+  summarise(count=n()) %>%
+  #mutate(race = fct_reorder(race,count)) %>% 
+  ggplot(aes(x=reorder(race,-count),y=count)) +
+  geom_col() +
+  geom_text(aes(label=count)) +
+  labs(x="Race",y="No. of Mass Shooters") +
+  ggtitle("The number of Mass shooters associated with each race category")
 ```
 
 -   Generate a boxplot visualizing the number of total victims, by type of location.
@@ -94,8 +97,8 @@ mass_shootings %>%
   arrange(desc(total_victims)) %>%
   ggplot(aes(x=location_type,y=total_victims))+
   geom_boxplot()+
-  labs(x="Location Types",y="Victims")+
-  ggtitle("Victims by Location types")
+  labs(x="Location Types",y="Total Victims")+
+  ggtitle("Total victims by Location types")
 ```
 
 -   Redraw the same plot, but remove the Las Vegas Strip massacre from the dataset.
@@ -107,8 +110,8 @@ mass_shootings %>%
   filter(case != "Las Vegas Strip massacre") %>% 
   ggplot(aes(x=location_type,y=total_victims))+
   geom_boxplot()+
-  labs(x="Location Types",y="Victims")+
-  ggtitle("Victims by Location types")
+  labs(x="Location Types",y="Total Victims")+
+  ggtitle("Total victims by Location types")
 ```
 
 ### More open-ended questions
@@ -133,17 +136,32 @@ mass_shootings %>%
   summarise(count=n()) %>% 
   mutate(month = factor(month, levels = month.abb)) %>% 
   arrange(month) %>% 
-  ggplot(aes(x=month,fill=count))+
-  geom_bar()
+  ggplot(aes(x=month,y=count))+
+  geom_col() +
+  labs(x="Month",y="No. of Mass shootings") +
+  ggtitle("Number of mass shootings by month")
 ```
 
 -   How does the distribution of mass shooting fatalities differ between White and Black shooters? What about White and Latino shooters?
 
 ```{r}
 mass_shootings %>% 
+  filter(race %in% c("White","Black")) %>% 
   group_by(race,year) %>% 
-  summarise(sum_monthly = n()) %>% 
-  filter(race %in% c("White","Black"))
+  summarise(sum=sum(fatalities)) %>% 
+ ggplot(aes(x=year,y=sum,color=race))+
+    geom_line()+
+    labs(x="Year",y="No. of mass fatalities") + 
+    ggtitle("Distribution of mass shooting fatalities between White and Black")
+
+mass_shootings %>% 
+  filter(race %in% c("White","Latino")) %>% 
+  group_by(race,year) %>% 
+  summarise(sum=sum(fatalities)) %>% 
+ ggplot(aes(x=year,y=sum,color=race))+
+    geom_line()+
+    labs(x="Year",y="No. of mass fatalities") + 
+    ggtitle("Distribution of mass shooting fatalities between White and Latino")
 ```
 
 ### Very open-ended
@@ -151,13 +169,33 @@ mass_shootings %>%
 -   Are mass shootings with shooters suffering from mental illness different from mass shootings with no signs of mental illness in the shooter?
 
 ```{r}
+mass_shootings %>% 
+  group_by(prior_mental_illness) %>% 
+  summarise(sum_victims = sum(total_victims), sum_injured=sum(injured), sum_fatalities=sum(fatalities))
 
+#ANS: Mass shootings with shooters suffering from mental illness has more injury people (120 injuries) and fatalities (503 death) more than non-mental illness cases (81 injuries and 120 death) 
 ```
 
 -   Assess the relationship between mental illness and total victims, mental illness and location type, and the intersection of all three variables.
 
 ```{r}
+mass_shootings %>% 
+  group_by(prior_mental_illness) %>% 
+  summarise(sum_victims = sum(total_victims)) %>% 
+  ggplot(aes(x=prior_mental_illness,y=sum_victims)) +
+  geom_col()+
+  labs(x="Is mental illness?", y="Total Victims") +
+  ggtitle("Relationship between Mental illness and Total victims")
 
+mass_shootings %>% 
+  filter(!is.na(prior_mental_illness)) %>% 
+  group_by(prior_mental_illness,location_type) %>% 
+  summarise(sum_victims_by_location = sum(total_victims)) %>% 
+  ggplot(aes(x=location_type,y=sum_victims_by_location)) +
+  geom_col()+
+  labs(x="Is mental illness?", y="Total Victims") +
+  ggtitle("Relationship between Mental illness and Total victims") + 
+  facet_wrap(~prior_mental_illness)
 ```
 
 Make sure to provide a couple of sentences of written interpretation of your tables/figures. Graphs and tables alone will not be sufficient to answer this question.
