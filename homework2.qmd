@@ -72,17 +72,20 @@ glimpse(mass_shootings)
 mass_shootings %>% 
   group_by(year) %>% 
   summarise(count=n())
-
 ```
 
 -   Generate a bar chart that identifies the number of mass shooters associated with each race category. The bars should be sorted from highest to lowest and each bar should show its number.
 
 ```{r}
 mass_shootings %>% 
-  filter(!is.na(race)) %>% 
+  
+  # Group race
   group_by(race) %>% 
+  
+  # Count #of mass shooters in each race
   summarise(count=n()) %>%
-  #mutate(race = fct_reorder(race,count)) %>% 
+  
+  # Plot Bar chart by order x-axis(race) from max count begins first
   ggplot(aes(x=reorder(race,-count),y=count)) +
   geom_col() +
   geom_text(aes(label=count)) +
@@ -94,8 +97,11 @@ mass_shootings %>%
 
 ```{r}
 mass_shootings %>% 
+  
+  # Group by location
   group_by(location_type) %>% 
-  arrange(desc(total_victims)) %>%
+
+  # Plot bar chart
   ggplot(aes(x=location_type,y=total_victims))+
   geom_boxplot()+
   labs(x="Location Types",y="Total Victims")+
@@ -106,9 +112,14 @@ mass_shootings %>%
 
 ```{r}
 mass_shootings %>% 
+  
+  # Group by location
   group_by(location_type) %>% 
-  arrange(desc(total_victims)) %>%
+  
+  # Filter out "Las Vegas Strip Massacre"
   filter(case != "Las Vegas Strip massacre") %>% 
+  
+  # Plot bar chart
   ggplot(aes(x=location_type,y=total_victims))+
   geom_boxplot()+
   labs(x="Location Types",y="Total Victims")+
@@ -123,6 +134,8 @@ Address the following questions. Generate appropriate figures/tables to support 
 
 ```{r}
 mass_shootings %>% 
+  
+  # Filter white males with prior signs of mental illness inititated after 2000
   filter(race=="White" & male =="TRUE" & year > 2000 & prior_mental_illness == "Yes") %>% 
   summarise(count=n())
 
@@ -133,10 +146,17 @@ mass_shootings %>%
 
 ```{r}
 mass_shootings %>% 
+ 
+  # Group month
   group_by(month) %>% 
+  
+  # Sum mass shooting for each month
   summarise(count=n()) %>% 
+ 
+  # Order month 
   mutate(month = factor(month, levels = month.abb)) %>% 
-  arrange(month) %>% 
+  
+  # Plot Bar Chart
   ggplot(aes(x=month,y=count))+
   geom_col() +
   labs(x="Month",y="No. of Mass shootings") +
@@ -147,19 +167,32 @@ mass_shootings %>%
 
 ```{r}
 mass_shootings %>% 
+  
+  # Filter only race is white or black
   filter(race %in% c("White","Black")) %>% 
+  
+  # Group race and year and summarise each of it
   group_by(race,year) %>% 
   summarise(sum=sum(fatalities)) %>% 
- ggplot(aes(x=year,y=sum,color=race))+
+  
+  # Plot line chart
+  ggplot(aes(x=year,y=sum,color=race))+
     geom_line()+
     labs(x="Year",y="No. of mass fatalities") + 
     ggtitle("Distribution of mass shooting fatalities between White and Black")
 
+
 mass_shootings %>% 
+  
+  # Filter only race is white or Latino
   filter(race %in% c("White","Latino")) %>% 
+  
+  # Group race and year and summarise each of it
   group_by(race,year) %>% 
   summarise(sum=sum(fatalities)) %>% 
- ggplot(aes(x=year,y=sum,color=race))+
+  
+  # Plot line chart
+  ggplot(aes(x=year,y=sum,color=race))+
     geom_line()+
     labs(x="Year",y="No. of mass fatalities") + 
     ggtitle("Distribution of mass shooting fatalities between White and Latino")
@@ -181,21 +214,32 @@ mass_shootings %>%
 
 ```{r}
 mass_shootings %>% 
+  
+  # Group by mental illness and summarise total victims in each type
   group_by(prior_mental_illness) %>% 
   summarise(sum_victims = sum(total_victims)) %>% 
+  
+  # Plot bar chart
   ggplot(aes(x=prior_mental_illness,y=sum_victims)) +
   geom_col()+
   labs(x="Is mental illness?", y="Total Victims") +
   ggtitle("Relationship between Mental illness and Total victims")
 
+
 mass_shootings %>% 
+  # Filter out empty data of prior mental illness
   filter(!is.na(prior_mental_illness)) %>% 
+  
+  # Group by mental illness and summarise total victims in each type
   group_by(prior_mental_illness,location_type) %>% 
   summarise(sum_victims_by_location = sum(total_victims)) %>% 
+  
+  # Plot bar chart
   ggplot(aes(x=location_type,y=sum_victims_by_location)) +
   geom_col()+
   labs(x="Is mental illness?", y="Total Victims") +
   ggtitle("Relationship between Mental illness and Total victims") + 
+  # Facet graph by prior mental illness
   facet_wrap(~prior_mental_illness)
 ```
 
@@ -245,25 +289,73 @@ The data dictionary is as follows
 -   In this dataset, how likely are fraudulent transactions? Generate a table that summarizes the number and frequency of fraudulent transactions per year.
 
 ```{r}
+fraud_cases_by_year <- card_fraud %>% 
+  
+  # Filter only fraud cases
+  filter(is_fraud == "1") %>% 
+  
+  # Group by year and summarise fraud case in each year
+  group_by(trans_year) %>% 
+  summarise(count_fraud_cases = n())
 
+fraud_cases_by_year
 ```
 
 -   How much money (in US\$ terms) are fraudulent transactions costing the company? Generate a table that summarizes the total amount of legitimate and fraudulent transactions per year and calculate the % of fraudulent transactions, in US\$ terms.
 
 ```{r}
+summary <- card_fraud %>% 
+  
+  # Group by fraud cases and summarise total amount of each case
+  group_by(trans_year,is_fraud) %>% 
+  summarise(sum_amt = sum(amt)) %>% 
+  
+  # Find % of each transaction type in US$ terms
+  mutate (percent_fraud = 100*(sum_amt/sum(sum_amt,trans_year = trans_year)))
 
+summary
 ```
 
 -   Generate a histogram that shows the distribution of amounts charged to credit card, both for legitimate and fraudulent accounts. Also, for both types of transactions, calculate some quick summary statistics.
 
 ```{r}
+card_fraud %>% 
+  
+  # Group by fraud cases and amount and summarise total amount of each case
+  group_by(is_fraud,amt) %>% 
+  summarise(count = n()) %>% 
+  
+  # Plot histogram and splited facet by whether is fraud or not
+  ggplot(aes(x=amt)) +
+  geom_histogram() +
+  labs(x= "Amount charged", y= "# of amount charged") +
+  ggtitle("Distribution of amounts charged to credit card") +
+  facet_wrap((~is_fraud)) 
 
+  # Find no.of cases, summary of amount, mean, median, and sd for fraud and not fraud cases
+card_fraud %>% 
+  group_by(is_fraud) %>% 
+  summarise(count_cases = n(), sum_amount = sum(amt), mean_amount = mean(amt), median_amount = median(amt), sd_amount = sd(amt))
 ```
 
 -   What types of purchases are most likely to be instances of fraud? Consider category of merchants and produce a bar chart that shows % of total fraudulent transactions sorted in order.
 
 ```{r}
+card_fraud %>% 
 
+# Group by category and count total case for each category
+  group_by(category) %>% 
+  summarise(count = n()) %>% 
+  
+  # Find % of each category's cases per total cases
+  mutate(percent = (count/sum(count))*100) %>% 
+  arrange(desc(percent)) %>% 
+  
+  # Plot bar chart by order of percentage
+  ggplot(aes(x=reorder(category,-percent),y=percent)) +
+  geom_col()+
+  labs(x="Category",y="% of total fraudulent transactions") +
+  ggtitle ("% of total fraudulent transactions by category")
 ```
 
 -   When is fraud more prevalent? Which days, months, hours? To create new variables to help you in your analysis, we use the `lubridate` package and the following code
@@ -286,7 +378,55 @@ mutate(
 ```
 
 ```{r}
+new_card_fraud <- card_fraud %>% 
+ 
+  # Change date/month/hour/weekday format
+  mutate(
+  date_only = lubridate::date(trans_date_trans_time),
+  month_name = lubridate::month(trans_date_trans_time, label=TRUE),
+  hour = lubridate::hour(trans_date_trans_time),
+  weekday = lubridate::wday(trans_date_trans_time, label = TRUE)) %>% 
+  
+  # Calculate age
+  mutate(age = interval(dob, trans_date_trans_time) / years(1),) 
 
+# View no. of fraud cases by year
+new_card_fraud %>% 
+  group_by(trans_year) %>% 
+  summarise(count = n())
+#ANS: 2019 has far more fraud cases than 2020's
+
+# View no. of fraud cases by month
+new_card_fraud %>% 
+  group_by(month_name) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+#ANS: There are different amount of cases for each month, but no trend can be obseved from the data. However, Mar and May have the most fraud cases.
+
+# View no. of fraud cases by date
+new_card_fraud %>% 
+  group_by(date_only) %>% 
+  summarise(count = n())
+
+# View no. of fraud cases by hour
+new_card_fraud %>% 
+  group_by(hour) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+#ANS: fraud acses are tended to occur at night more than day. The most cases are occured at hour 22.
+
+# View no. of fraud cases by weekday
+new_card_fraud %>% 
+  group_by(weekday) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+#ANS: fraud acses are tended to occur on weekend more than weekday except for Monday, which has the most fraud cases
+
+# View no. of fraud cases by age
+new_card_fraud %>% 
+  group_by(age) %>% 
+  summarise(count = n())
+#ANS: older people seems to not be victims of fraud cases
 ```
 
 -   Is fraud related to distance? The distance between a card holder's home and the location of the transaction can be a feature that is related to fraud. To calculate distance, we need the latidue/longitude of card holders's home and the latitude/longitude of the transaction, and we will use the [Haversine formula](https://en.wikipedia.org/wiki/Haversine_formula) to calculate distance. I adapted code to [calculate distance between two points on earth](https://www.geeksforgeeks.org/program-distance-two-points-earth/amp/) which you can find below
@@ -296,7 +436,7 @@ mutate(
 # code adapted from https://www.geeksforgeeks.org/program-distance-two-points-earth/amp/
 
 
-fraud <- fraud %>%
+fraud <- card_fraud %>%
   mutate(
     
     # convert latitude/longitude to radians
@@ -311,7 +451,19 @@ fraud <- fraud %>%
     # calculate distance in km
     distance_km = 6377.830272 * acos((sin(lat1_radians) * sin(lat2_radians)) + cos(lat1_radians) * cos(lat2_radians) * cos(long2_radians - long1_radians))
 
-  )
+  ) %>% 
+
+  # Filter only fraud cases
+  filter(is_fraud == "1") %>% 
+  
+  # Plot boxplot
+  ggplot(aes(x= is_fraud,y=distance_km)) +
+  geom_boxplot() +
+  ggtitle("Distance between card holder's home and transaction")
+
+fraud
+
+#ANS: fraud cases seems to relate to the distance sincemost cases are within 50-100km
 
 ```
 
@@ -385,6 +537,88 @@ gdp_percap <- wb_data(country = "countries_only",
   select(-c(unit, obs_status, footnote, last_updated)) %>% 
   rename(year = date,
          GDPpercap = value)
+
+#Q1: A stacked area chart that shows how your own country generated its electricity since 2000.
+energy %>%
+  
+  # Filter country Thailand that the info is not empty
+  filter(country == "Thailand" & !is.na(electricity_generation)) %>% 
+  
+  # Plot a stacked area chart
+  ggplot(aes(x=year,y=electricity_generation)) +
+  geom_area() +
+  labs(x="Years",y="Electricity Generation") +
+  ggtitle("Electricity Generation in Thailand over years")
+
+#ANS: the generated electricity is increaseing over years
+
+
+#Q2: A scatter plot that looks at how CO2 per capita and GDP per capita are related
+gdp_percap %>% 
+  
+   # Merge CO2 and GDP data
+  left_join(co2_percap,by = c("iso3c","year")) %>% 
+  
+  # Plot a chart
+  ggplot(aes(x=GDPpercap,y=co2percap)) + 
+  geom_point() + 
+  labs(x="GDP per capita",y="CO2 per capita") +
+  ggtitle("Relationship between GDP per capita and CO2 per capita")
+
+#ANS: the more GDP, the more CO2 released
+
+
+#Q3: A scatter plot that looks at how electricity usage (kWh) per capita/day GDP per capita are related 
+energy %>% 
+  
+  # Merge Energy and GDP data
+  mutate(iso3c = iso_code) %>% 
+  left_join(gdp_percap,by = c("iso3c","year")) %>% 
+  
+  # Plot a chart
+  ggplot(aes(x=GDPpercap,y=per_capita_electricity)) + 
+  geom_point() + 
+  labs(x="GDP per capita",y="Electricity usage(kWh) per capita") +
+  ggtitle("Relationship between GDP per capita and CO2 per capita")
+
+# Specific Questions
+#1 How would you turn energy to long, tidy format?
+energy %>% 
+  pivot_longer(cols = 4:18, names_to = "Data", values_to = "Value")
+
+#3 Write a function that takes as input any country's name and returns all three graphs. You can use the patchwork package to arrange the three graphs as shown below
+
+generate_energy_charts <- function(country) {
+   country_energy <- energy %>% 
+    filter(country == {{country}})
+  
+# Plot an electricity generation chart
+  electricity_production_chart <- country_energy %>% 
+    ggplot(aes(x = year, y = electricity_generation)) +
+    geom_area() +
+    labs(title = "Electricity Production Mix")
+  
+# Plot a chart for CO2 per capita and GDP per capita
+  gdp_co2_percap_charts <- co2_percap %>% 
+    left_join(gdp_percap, by = "iso3c") %>% 
+    filter(country == {{country}}) %>% 
+    ggplot(aes(x = co2percap, y = GDPpercap)) +
+    geom_point() + 
+    labs(title = "Relationship between CO2 per capita and GDP per capita")
+  
+# Plot a chart for electricity usage per capita and GDP per capita
+  energy_gdp_percap_charts <- energy_gdp_percap %>% 
+    mutate(iso3c = iso_code) %>% 
+    left_join(gdp_percap, by = "iso3c") %>% 
+    filter(country == {{country}}) %>% 
+    ggplot(aes(x = per_capita_electricity, y = GDPpercap)) +
+    geom_point() + 
+    labs(title = "Relationship between Electricity Usage and GDP per capita")
+  
+#Return
+return(list(electricity_production_chart, gdp_co2_percap_charts, energy_gdp_percap_charts))
+}
+
 ```
 
 Specific questions:
