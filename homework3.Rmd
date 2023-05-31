@@ -69,6 +69,9 @@ DBI::dbListTables(sky_westminster)
 payments_db <- tbl(sky_westminster,"payments")
 members_db <- tbl(sky_westminster,"members")
 parties_db <- tbl(sky_westminster,"parties")
+party_donations_db <- tbl(sky_westminster,"party_donations")
+appg_donations_db <- tbl(sky_westminster,"appg_donations")
+appgs_db <- tbl(sky_westminster,"appgs")
 
 payments_df <- payments_db %>% 
   collect()
@@ -76,10 +79,19 @@ members_df <- members_db %>%
   collect()
 parties_df <- parties_db %>% 
   collect()
+party_donations_df <- party_donations_db %>% 
+  collect()
+appg_donations_df <- appg_donations_db %>% 
+  collect()
+appgs_df <- appgs_db %>% 
+  collect()
 
 glimpse(payments_df)
 glimpse(members_df)
 glimpse(parties_df)
+glimpse(party_donations_df)
+glimpse(appg_donations_df)
+glimpse(appgs_df)
 ```
 
 ## Which MP has received the most amount of money? 
@@ -88,11 +100,18 @@ You need to work with the `payments` and `members` tables and for now we just wa
 
 ```{r}
 members_df %>% 
+  # add new column member_id to join with payment df
   mutate(member_id = id) %>% 
+  # join members df with payments df by matching member_id
   right_join(payments_df,by="member_id") %>% 
+  # group by MP name
   group_by(name) %>% 
+  # summarise received money for each MP
   summarise(total_money = sum(value)) %>% 
+  # arrange MP who have more money first
   arrange(desc(total_money))
+
+# ANS: Theresa May has received the most amount of money with 2.8M pounds
 ```
 
 
@@ -102,11 +121,18 @@ Is there any `entity` whose donations account for more than 5% of the total paym
 
 ```{r}
 payments_df %>% 
+  # group by each entity
   group_by(entity) %>% 
+  # summarise total money that each entity donate
   summarise(total_value = sum(value)) %>% 
+  # create a column to show % of donation compared to all donations
   mutate(percent_of_all_donation = 100*(total_value/sum(total_value))) %>% 
+  # filter only entities that donated >5% compared to all donations
   filter(percent_of_all_donation > 5) %>% 
+  # arrange entities by 5 of all donation
   arrange(desc(percent_of_all_donation))  
+
+# ANS: only Withers LLP that donated >5% of all donations. It donated 1.8M, which accounted for 5.25% of all donations.
 ```
 
 
@@ -117,19 +143,32 @@ payments_df %>%
 
 ```{r}
 payments_df %>% 
+  # filter payments that entity is not empty
   filter(!is.na(entity)) %>% 
+  # count distinct numbers of entity
   summarise(count=n_distinct(entity))
 
 members_df %>% 
+  # add new column member_id to join with payment df
   mutate(member_id = id) %>% 
+  # join members df with payments df by matching member_id
   right_join(payments_df,by="member_id") %>% 
+  # select to show only entity and party id column
   select(entity,party_id) %>% 
+  # group by entity and party id
   group_by(entity,party_id) %>% 
+  # count each entity paired with party id
   summarise(count=n()) %>% 
+  # select to show only entity column
   select(entity) %>% 
+  # count number of each entity
   summarise(count=n()) %>% 
+  # filter only count = 1 (meaning that this entity donated to only a single party)
   filter(count == 1) %>% 
+  # count total numbers of entities that donated to only a single party
   summarise(sum_unique=sum(count))
+
+# ANS: There are 2,036 entities that donated to a single party from a total of 2,213 parties, meaning that 92% of entities donated to single party 
 ```
 
 
@@ -139,22 +178,26 @@ I would like you to write code that generates the following table.
 
 ```{r echo=FALSE, out.width="80%"}
 knitr::include_graphics(here::here("images", "total_donations_table.png"), error = FALSE)
-  
-total_amount <- members_df %>% 
-  mutate(member_id = id) %>% 
-  right_join(payments_df,by="member_id") %>%
-  separate(date,into = c('month','year'),sep = -4) %>% 
+
+total_donations <- party_donations_df %>% 
+  # add new id column to join party id with parties df
+  mutate(id = party_id) %>% 
+  # join party_donation_df with parties_df by matching id
+  left_join(parties_df,by="id") %>%
+  # separate 'date' column into 'month' and 'year' columns by capturing the first 4 characters in date into column     'year' and the rest characters into column 'month'
+  separate(date,into = c('year','month'),sep = 4) %>% 
+  # filter only years 2020-2022
   filter(year %in% c("2020","2021","2022")) %>% 
-  group_by(party_id,year) %>% 
-  summarise(sum_money = sum(value))
+  # group by year and party name
+  group_by(year,name) %>% 
+  # summarise total money for each party name in each year
+  summarise(total_year_donations = sum(value)) %>% 
+  # create column 'prop' that divided by total donations in each year
+  mutate(prop = total_year_donations/sum(total_year_donations)) %>% 
+  # arrange table by year
+  arrange(year)
 
-total_amount_byyear <- parties_df %>% 
-  mutate(party_id=id) %>% 
-  right_join(total_amount,by="party_id") %>% 
-  select(name,party_id,year,sum_money) %>% 
-  arrange(desc(sum_money))
-
-total_amount_byyear
+total_donations
 ```
 
 
@@ -163,9 +206,23 @@ total_amount_byyear
 ```{r echo=FALSE, out.width="80%"}
 knitr::include_graphics(here::here("images", "total_donations_graph.png"), error = FALSE)
 
-total_amount_byyear %>% 
-  ggplot(aes(x=year,y=sum_money,fill=name))+
-  geom_bar(stat="identity",position="dodge")
+total_donations %>% 
+  ggplot(aes(x=year,
+             y=total_year_donations,
+             fill=reorder(name,-total_year_donations)
+             )
+         )+
+  geom_bar(stat="identity",
+           position="dodge"
+           ) +
+  ggtitle("Conservatives have captured the majority of political donations") +
+  labs(subtitle = "Donations to political parties, 2020-2022", 
+       fill="Party", 
+       x="", 
+       y=""
+       ) +
+  scale_y_continuous(labels = label_comma()) +
+  theme_bw()
 ```
 
 This uses the default ggplot colour pallete, as I dont want you to worry about using the [official colours for each party](https://en.wikipedia.org/wiki/Wikipedia:Index_of_United_Kingdom_political_parties_meta_attributes). However, I would like you to ensure the parties are sorted according to total donations and not alphabetically. You may even want to remove some of the smaller parties that hardly register on the graph. Would facetting help you?  
@@ -199,6 +256,7 @@ glimpse(cdc_data)
 
 tic() # start timer
 
+# Filter and clear unused data
 cdc_data_df <- cdc_data %>% 
   filter(icu_yn %in% c("Yes", "No")) %>% 
   filter(sex %in% c("Male","Female")) %>% 
@@ -215,7 +273,11 @@ Can you query the database and replicate the following plot?
 knitr::include_graphics(here::here("images", "covid-CFR-ICU.png"), error = FALSE)
 
 cfr_df <- cdc_data_df %>% 
+  # change value in icu_yn column to be the same in the given graph
+  mutate(icu_yn = ifelse(icu_yn == "Yes", "ICU Admission", "No ICU Admission")) %>% 
+  # group by age_group, sex, and icu status
   group_by(age_group,sex,icu_yn) %>% 
+  # calculate % of death compared within the same age group, sex, and icu status
   summarise(
               death_cases = sum(death_yn == "Yes", na.rm =TRUE)
             , total_cases = n()
@@ -223,10 +285,25 @@ cfr_df <- cdc_data_df %>%
             )
 
 cfr_df %>% 
-  ggplot(aes(x=percent_death,y=age_group)) + 
-  geom_col() + 
+  # plot graph x as %of death and y as age group
+  ggplot(aes(x=percent_death,
+             y=age_group
+             )) + 
+  # fill bar color
+  geom_col(fill = "#FF6666") + 
+  # add small %value in bar labels
+  geom_text(aes(label=round(percent_death)),
+            size = 2.5
+            ) +
+  # add title name and make empty x and y axis labels
+  labs(title = "Covid CFR % by age group, sex and ICU Admission", 
+       x="", 
+       y=""
+       ) +
+  # set black and white theme
+  theme_bw() +
+  # facet by icu status and sex
   facet_grid(icu_yn ~ sex)
-
 ```
 
 The previous plot is an aggregate plot for all three years of data. What if we wanted to plot Case Fatality Ratio (CFR) over time? Write code that collects the relevant data from the database and plots the following
@@ -236,16 +313,51 @@ The previous plot is an aggregate plot for all three years of data. What if we w
 knitr::include_graphics(here::here("images", "cfr-icu-overtime.png"), error = FALSE)
 
 cfr_df_by_month <- cdc_data_df %>% 
+  # change value in icu_yn column to be the same in the given graph
+  mutate(icu_yn = ifelse(icu_yn == "Yes", "ICU Admission", "No ICU Admission")) %>%
+  # group by age_group, sex, icu status, and case month
   group_by(age_group,sex,icu_yn,case_month) %>% 
+  # calculate % of death compared within the same age group, sex, and icu status
   summarise(
               death_cases = sum(death_yn == "Yes", na.rm =TRUE)
             , total_cases = n()
             , percent_death = 100*(death_cases/total_cases)
-            )
+            ) %>% 
+  # filter out % = 0
+  filter(percent_death != 0) %>% 
+  # filter out % = 100
+  filter(percent_death != 100)
 
 cfr_df_by_month %>% 
-  ggplot(aes(x=case_month, y=percent_death, colour = age_group, group = 1)) +
+  # plot x-axis= case month, y-axis = percent of death, and separate color by age_group 
+  ggplot(aes(x=case_month, 
+             y=percent_death, 
+             colour = age_group, 
+             group = age_group
+             )) +
+  # plor line chart
   geom_line() +
+  # set y-axis 
+  scale_y_continuous() +
+  # add text in line chart
+  geom_text(aes(label=round(percent_death)), 
+            size = 2.5
+            ) +
+  # add title, caption, empty x-axis label, and empty y-axis label
+  labs(title="Covid CFR % by age group, sex and ICU Admission", 
+       x="", 
+       y="", 
+       colour ="Age Group",
+       caption = "Source: CDC") +
+  # theme black and white
+  theme_bw() +
+  # flip x-axis text
+  theme(axis.text.x = element_text(size = 5, 
+                                   angle = 90, 
+                                   vjust = 0.5, 
+                                   hjust=1
+                                   )) +
+  # facet by icu status and sex
   facet_grid(icu_yn ~ sex)
 
 ```
@@ -278,20 +390,62 @@ Can you query the database, extract the relevant information, and reproduce the 
 knitr::include_graphics(here::here("images", "cfr-county-population.png"), error = FALSE)
 
 data_with_fip <- cdc_data_df %>% 
+  # adjust fips code to join with urban code table
   mutate(fips_code = county_fips_code) %>% 
+  # left join cdc data with urban code table
   left_join(urban_rural, by ="fips_code") %>% 
+  # filter out empty code
   filter(!is.na(x2013_code)) %>% 
-  group_by(x2013_code,case_month) %>% 
+  # turn number code into word definition
+  mutate(category_name = ifelse(x2013_code == 1, "1. Large central metro",
+                                ifelse(x2013_code == 2, "2. Large fringe metro",
+                                ifelse(x2013_code == 3, "3. Medium metro",
+                                ifelse(x2013_code == 4, "4. Small metropolitan population",
+                                ifelse(x2013_code == 5, "5. Micropolitan",
+                                ifelse(x2013_code == 6, "6. Noncore", x2013_code       
+                                ))))))) %>% 
+  # group by category and case month
+  group_by(category_name,case_month) %>% 
+  # calculate percent of death
   summarise(
               death_cases = sum(death_yn == "Yes", na.rm =TRUE)
             , total_cases = n()
             , percent_death = 100*(death_cases/total_cases)
-            ) 
+            ) %>% 
+  # filter out percent = 100
+  filter(percent_death != 100)
 
 data_with_fip %>% 
-  ggplot(aes(x=case_month,y=percent_death,group=1)) +
+  # plot x-axis= case month, y-axis = percent of death, and separate color by age_group 
+  ggplot(aes(x=case_month, 
+             y=percent_death, 
+             group=1,
+             colour = category_name,
+             )) +
+  # draw line chart
   geom_line()+
-  facet_wrap(~x2013_code)
+  # add text in line chart
+  geom_text(aes(label=round(percent_death)), 
+            size = 2.5
+            ) +
+  # set y-axis scale
+  scale_y_continuous() +
+  # add title, caption, empty x-axis, and empty y-axis
+  labs(title="Covid CFR % by country population", 
+       x="", 
+       y="", 
+       caption = "Source: CDC") +
+  # remove fill legend
+  guides(colour = FALSE) +
+  # set theme black and white
+  theme_bw() +
+  # flip x-axis text
+  theme(axis.text.x = element_text(size = 5, 
+                                   angle = 90, 
+                                   vjust = 0.5, 
+                                   hjust=1)) +
+  # facet by category name
+  facet_wrap(~category_name)
 ```
 
 
@@ -303,7 +457,7 @@ data_by_area <- cdc_data_df %>%
   mutate(fips_code = county_fips_code) %>% 
   left_join(urban_rural, by ="fips_code") %>% 
   filter(!is.na(x2013_code)) %>% 
-  mutate(area = ifelse(x2013_code %in% c("1","2","3","4"),"urban","rural")) %>% 
+  mutate(area = ifelse(x2013_code %in% c("1","2","3","4"),"Urban","Rural")) %>% 
   group_by(area,case_month) %>% 
   summarise(
               death_cases = sum(death_yn == "Yes", na.rm =TRUE)
@@ -312,8 +466,32 @@ data_by_area <- cdc_data_df %>%
             ) 
 
 data_by_area %>% 
-  ggplot(aes(x=case_month,y=percent_death,colour=area,group=1)) +
-  geom_line()
+  # plot x-axis= case month, y-axis = percent of death, and separate color by area
+  ggplot(aes(x=case_month,
+             y=percent_death,
+             colour=area,
+             group=area)) +
+  # draw line chart
+  geom_line() +
+  # add text in line chart
+  geom_text(aes(label=round(percent_death, digit=1)), 
+            size = 2.5
+            ) +
+  # set y-axis scale
+  scale_y_continuous() +
+  # add title, caption, empty x-axis, and empty y-axis
+  labs(title="Covid CFR % by rural and urban areas", 
+       x="", 
+       y="", 
+       caption = "Source: CDC",
+       colour = "Counties") +
+  # set theme black and white
+  theme_bw() +
+  # flip x-axis text
+  theme(axis.text.x = element_text(size = 5, 
+                                   angle = 90, 
+                                   vjust = 0.5, 
+                                   hjust = 1))
 
 ```
 
